@@ -24,7 +24,7 @@ Resources:
               - Effect: "Allow"
                 Action:
                   - "s3:PutObject"
-                Resource: "arn:aws:s3:::test/*"
+                Resource: "arn:aws:s3:::testsup/*"
               - Effect: "Allow"
                 Action:
                   - "logs:CreateLogGroup"
@@ -59,7 +59,7 @@ Resources:
                   }
 
               # Store parameter value in S3 bucket
-              bucket_name = 'test'
+              bucket_name = 'testsup'
               file_name = 'parameter.txt'
               file_content = f'Username: {username}'
 
