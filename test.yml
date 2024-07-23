@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template for exercise
+
+Resources:
+  ParameterStoreAccessRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "ParameterStoreAndS3Access"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ssm:GetParameter"
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                Resource: "arn:aws:s3:::test/*"
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+
+  ExerciseLambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "lambda_function.lambda_handler"
+      Role: !GetAtt ParameterStoreAccessRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import json
+
+          ssm = boto3.client('ssm')
+          s3 = boto3.client('s3')
+
+          def lambda_handler(event, context):
+              # Retrieve SSM Parameter
+              parameter_name = 'UserName'
+              try:
+                  response = ssm.get_parameter(Name=parameter_name, WithDecryption=False)
+                  username = response['Parameter']['Value']
+              except Exception as e:
+                  return {
+                      'statusCode': 500,
+                      'body': str(e)
+                  }
+
+              # Store parameter value in S3 bucket
+              bucket_name = 'test'
+              file_name = 'parameter.txt'
+              file_content = f'Username: {username}'
+
+              try:
+                  s3.put_object(Bucket=bucket_name, Key=file_name, Body=file_content)
+              except Exception as e:
+                  return {
+                      'statusCode': 500,
+                      'body': str(e)
+                  }
+
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({'message': f'Stored {parameter_name} in S3'})
+              }
+
+      Runtime: "python3.8"
+
+  CustomResource:
+    Type: "Custom::LambdaInvoker"
+    Properties:
+      ServiceToken: !GetAtt ExerciseLambdaFunction.Arn
+
+Outputs:
+  LambdaFunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref ExerciseLambdaFunction
+
+  LambdaFunctionArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt ExerciseLambdaFunction.Arn
